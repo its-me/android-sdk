@@ -6,11 +6,11 @@ ENV ANDROID_HOME=/opt/android-sdk \
     LANGUAGE=en_US:en
 
 ENV ANDROID_SDK_ROOT=$ANDROID_HOME \
-    PATH=${PATH}:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/emulator
+    PATH=${PATH}:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/emulator
 
-# https://developer.android.com/studio/#command-line-tools-only
-ARG ANDROID_SDK_TOOLS_VERSION=14742923
-ENV ANDROID_SDK_TOOLS_VERSION=${ANDROID_SDK_TOOLS_VERSION}
+# https://developer.android.com/tools/agents/android-cli/download
+ARG ANDROID_CLI_VERSION=1.0.16261425
+ENV ANDROID_CLI_VERSION=${ANDROID_CLI_VERSION}
 
 RUN set -o xtrace \
     && apt-get update \
@@ -25,6 +25,7 @@ RUN set -o xtrace \
         git \
         openssh-client \
         curl \
+        gnupg \
         bc \
         build-essential \
         ruby-full \
@@ -48,17 +49,15 @@ RUN set -o xtrace \
     && sh -c 'echo "en_US.UTF-8 UTF-8" > /etc/locale.gen' \
     && locale-gen \
     && update-locale LANG=en_US.UTF-8 \
+    && install -d -m 0755 /etc/apt/keyrings \
+    && curl -fsSL https://dl.google.com/linux/linux_signing_key.pub -o /etc/apt/keyrings/google.asc \
+    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google.asc] http://dl.google.com/android/cli/latest/debian/ stable main" > /etc/apt/sources.list.d/android-cli.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends android-cli=${ANDROID_CLI_VERSION} \
     && rm -rf /var/lib/apt/lists/* \
-    && wget --no-show-progress -q \
-        https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_SDK_TOOLS_VERSION}_latest.zip \
-        -O /tmp/android-sdk-tools.zip \
-    && mkdir -p ${ANDROID_HOME}/cmdline-tools/ \
-    && unzip -q /tmp/android-sdk-tools.zip -d ${ANDROID_HOME}/cmdline-tools/ \
-    && mv ${ANDROID_HOME}/cmdline-tools/cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest \
-    && rm /tmp/android-sdk-tools.zip \
+    && mkdir -p ${ANDROID_HOME} \
+    && android sdk install platform-tools \
     && echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers \
-    && yes | sdkmanager --licenses \
-    && sdkmanager platform-tools \
     && printf '#!/bin/bash\n\
 # Wait for Android emulator to finish booting\n\
 set +e\n\

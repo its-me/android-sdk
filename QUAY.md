@@ -5,16 +5,16 @@ Source: https://github.com/its-me/image.android-sdk
 
 ### tools
 
-Base image. Installs OpenJDK 21, Android command-line tools (sdkmanager, adb, etc.), and the system packages typically needed for Flutter CI (build-essential, curl, git, and others). Includes the android-wait-for-emulator helper script.
+Base image. Installs OpenJDK 21, the Android CLI (android, replacing the deprecated sdkmanager) plus adb and other platform tools, and the system packages typically needed for Flutter CI (build-essential, curl, git, and others). Includes the android-wait-for-emulator helper script.
 
 | Tag | Example | Meaning |
 |-----|---------|---------|
-| `tools-<version>` | `tools-14742923` | Exact command-line tools build |
-| `tools` | `tools` | Latest released command-line tools |
+| `tools-<version>` | `tools-1.0.16261425` | Exact Android CLI version |
+| `tools` | `tools` | Latest released Android CLI |
 
 ### build-tools
 
-Adds Android build tools (aapt, d8, zipalign, etc.) via sdkmanager.
+Adds Android build tools (aapt, d8, zipalign, etc.) via the Android CLI.
 
 | Tag | Example | Meaning |
 |-----|---------|---------|
@@ -25,7 +25,7 @@ Adds Android build tools (aapt, d8, zipalign, etc.) via sdkmanager.
 
 ### platform
 
-Adds the Android platform SDK for a specific API level via sdkmanager.
+Adds the Android platform SDK for a specific API level via the Android CLI.
 
 | Tag | Example | Meaning |
 |-----|---------|---------|

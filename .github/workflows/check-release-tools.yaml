@@ -21,7 +21,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          latest=$(curl -s 'https://dl.google.com/android/repository/repository2-3.xml' | grep -oP 'commandlinetools-linux-\K[0-9]+(?=_latest\.zip)' | sort -n | tail -1)
+          latest=$(curl -s 'http://dl.google.com/android/cli/latest/debian/dists/stable/main/binary-amd64/Packages' | grep -oP '^Version: \K.*')
           if ! git ls-remote --exit-code origin "refs/tags/tools-$latest"; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"

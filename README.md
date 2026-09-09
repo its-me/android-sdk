@@ -9,12 +9,12 @@ Docker base images for Flutter CI pipelines, providing the Android SDK layer tha
 **Dockerfile:** `Dockerfile.tools`  
 **Base:** `debian:stable-slim`
 
-Installs OpenJDK 21, the Android SDK command-line tools (`sdkmanager`, `adb`, etc.), and supporting system packages (Ruby, `build-essential`, `curl`, `git`, etc.). Provides the `android-wait-for-emulator` helper script. All subsequent images build on top of this one.
+Installs OpenJDK 21, the [Android CLI](https://developer.android.com/tools/agents/android-cli) (`android`, replacing the deprecated `sdkmanager`) plus `adb` and other platform tools, and supporting system packages (Ruby, `build-essential`, `curl`, `git`, etc.). Provides the `android-wait-for-emulator` helper script. All subsequent images build on top of this one.
 
 | Tag | Example | Meaning |
 |-----|---------|---------|
-| `tools-<version>` | `tools-14742923` | Exact command-line tools version |
-| `tools` | `tools` | Latest release of command-line tools |
+| `tools-<version>` | `tools-1.0.16261425` | Exact Android CLI version |
+| `tools` | `tools` | Latest release of Android CLI |
 
 ---
 
@@ -23,7 +23,7 @@ Installs OpenJDK 21, the Android SDK command-line tools (`sdkmanager`, `adb`, et
 **Dockerfile:** `Dockerfile.build-tools`  
 **Base:** `tools`
 
-Adds the Android build tools package (`aapt`, `d8`, `zipalign`, etc.) via `sdkmanager`.
+Adds the Android build tools package (`aapt`, `d8`, `zipalign`, etc.) via `android sdk install`.
 
 | Tag | Example | Meaning |
 |-----|---------|---------|
@@ -39,7 +39,7 @@ Adds the Android build tools package (`aapt`, `d8`, `zipalign`, etc.) via `sdkma
 **Dockerfile:** `Dockerfile`  
 **Base:** `build-tools`
 
-Adds the Android platform SDK for a specific API level via `sdkmanager`.
+Adds the Android platform SDK for a specific API level via `android sdk install`.
 
 | Tag | Example | Meaning |
 |-----|---------|---------|
@@ -79,7 +79,7 @@ Pin to a specific platform version for reproducible builds:
 container: ghcr.io/its-me/android-sdk:37.0
 ```
 
-If you only need build-tools without platform SDK, use `build-tools` image; for just `sdkmanager` and platform tools, use `tools`.
+If you only need build-tools without platform SDK, use `build-tools` image; for just the Android CLI and platform tools, use `tools`.
 
 ---
 
@@ -93,13 +93,13 @@ Images are mirrored to three registries under the same tag names:
 
 ## Automated releases
 
-Each image family has a daily check workflow that queries the [Android SDK repository XML](https://dl.google.com/android/repository/repository2-3.xml) for new versions. When a new version is found that has no corresponding git tag, the matching release workflow is triggered automatically.
+Each image family has a daily check workflow that queries a Google-hosted package index for new versions. When a new version is found that has no corresponding git tag, the matching release workflow is triggered automatically.
 
 | Workflow | Schedule (UTC) | Watches |
 |----------|---------------|---------|
-| `tools: check release` | 00:00 daily | `commandlinetools-linux-<version>` |
-| `build-tools: check release` | 01:00 daily | `build-tools;<version>` |
-| `platform: check release` | 02:00 daily | `platforms;android-<version>` |
+| `tools: check release` | 00:00 daily | [Android CLI apt `Packages` index](http://dl.google.com/android/cli/latest/debian/dists/stable/main/binary-amd64/Packages) |
+| `build-tools: check release` | 01:00 daily | [Android SDK repository XML](https://dl.google.com/android/repository/repository2-3.xml): `build-tools;<version>` |
+| `platform: check release` | 02:00 daily | [Android SDK repository XML](https://dl.google.com/android/repository/repository2-3.xml): `platforms;android-<version>` |
 
 Release workflows can also be triggered manually via `workflow_dispatch` with an explicit version input.
 
