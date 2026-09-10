@@ -116,16 +116,47 @@ jobs:
           destination-password: ${{ secrets.QUAY_TOKEN }}
           tags: ${{ needs.build-tools.outputs.tags }}
 
+  resolve-build-tools-version:
+    name: "build-tools: Resolve version"
+    # Runs for both the build-tools tier itself and for a tools release
+    # cascading upward, so build-tools always ends up on the freshest tools
+    # base. Not needed when only platform is being released.
+    needs: resolve
+    if: needs.resolve.outputs.tier != 'platform'
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - name: Resolve version
+        id: version
+        env:
+          TIER: ${{ needs.resolve.outputs.tier }}
+          RESOLVED_VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          if [ "$TIER" = "build-tools" ]; then
+            echo "value=$RESOLVED_VERSION" >> "$GITHUB_OUTPUT"
+          else
+            latest=$(curl -s 'https://dl.google.com/android/repository/repository2-3.xml' \
+              | grep -oP 'build-tools;\K[0-9]+\.[0-9]+\.[0-9]+(?:-rc[0-9]+)?' \
+              | sed 's/$/-z/' | sort -uV | tail -1 | sed 's/-z$//')
+            echo "value=$latest" >> "$GITHUB_OUTPUT"
+          fi
+
   build-build-tools:
     name: "build-tools: Build and push to GHCR"
-    needs: resolve
-    if: needs.resolve.outputs.tier == 'build-tools'
+    needs: [resolve, resolve-build-tools-version, build-tools]
+    # OR-gated like build-platform below: runs whenever build-tools is the
+    # triggered tier, or whenever the tools tier's build just succeeded, so a
+    # tools release always cascades into a fresh build-tools build too.
+    if: needs.resolve.outputs.tier == 'build-tools' || needs.build-tools.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     outputs:
-      tags: build-tools-${{ needs.resolve.outputs.version }} ${{ steps.tags.outputs.major_tag }} build-tools
+      tags: build-tools-${{ needs.resolve-build-tools-version.outputs.version }} ${{ steps.tags.outputs.major_tag }} build-tools
     steps:
       - uses: actions/checkout@v7
 
@@ -137,7 +168,7 @@ jobs:
 
       - id: tags
         env:
-          VERSION: ${{ needs.resolve.outputs.version }}
+          VERSION: ${{ needs.resolve-build-tools-version.outputs.version }}
         run: |
           major="${VERSION%%.*}"
           if [[ "$VERSION" == *"-rc"* ]]; then
@@ -152,10 +183,10 @@ jobs:
         with:
           context: .
           file: Dockerfile.build-tools
-          build-args: ANDROID_BUILD_TOOLS_VERSION=${{ needs.resolve.outputs.version }}
+          build-args: ANDROID_BUILD_TOOLS_VERSION=${{ needs.resolve-build-tools-version.outputs.version }}
           push: true
           tags: |
-            ghcr.io/its-me/android-sdk:build-tools-${{ needs.resolve.outputs.version }}
+            ghcr.io/its-me/android-sdk:build-tools-${{ needs.resolve-build-tools-version.outputs.version }}
             ghcr.io/its-me/android-sdk:${{ steps.tags.outputs.major_tag }}
             ghcr.io/its-me/android-sdk:build-tools
 
@@ -199,10 +230,40 @@ jobs:
           destination-password: ${{ secrets.QUAY_TOKEN }}
           tags: ${{ needs.build-build-tools.outputs.tags }}
 
+  resolve-platform-version:
+    name: "platform: Resolve version"
+    # Always runs: every release, regardless of which tier triggered it, ends
+    # with platform being (re)built on the freshest base available.
+    needs: resolve
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - name: Resolve version
+        id: version
+        env:
+          TIER: ${{ needs.resolve.outputs.tier }}
+          RESOLVED_VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          if [ "$TIER" = "platform" ]; then
+            echo "value=$RESOLVED_VERSION" >> "$GITHUB_OUTPUT"
+          else
+            latest=$(curl -s 'https://dl.google.com/android/repository/repository2-3.xml' \
+              | grep -oP 'platforms;android-\K[0-9]+(?:\.[0-9]+)?(?:-ext[0-9]+)?(?=")' \
+              | sed 's/$/-z/' | sort -uV | tail -1 | sed 's/-z$//')
+            echo "value=$latest" >> "$GITHUB_OUTPUT"
+          fi
+
   build-platform:
     name: "platform: Build and push to GHCR"
-    needs: resolve
-    if: needs.resolve.outputs.tier == 'platform'
+    needs: [resolve, resolve-platform-version, build-build-tools]
+    # OR-gated: runs whenever platform is the triggered tier, or whenever the
+    # build-tools tier's build just succeeded (whether triggered directly or
+    # cascaded from a tools release), so both lower tiers always cascade into
+    # a fresh platform build too.
+    if: needs.resolve.outputs.tier == 'platform' || needs.build-build-tools.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -221,7 +282,7 @@ jobs:
       - name: Resolve tags
         id: tags
         env:
-          VERSION: ${{ needs.resolve.outputs.version }}
+          VERSION: ${{ needs.resolve-platform-version.outputs.version }}
         run: |
           major="${VERSION%%.*}"
           bare="$VERSION"
@@ -240,7 +301,7 @@ jobs:
         with:
           context: .
           file: Dockerfile
-          build-args: ANDROID_PLATFORM_VERSION=${{ needs.resolve.outputs.version }}
+          build-args: ANDROID_PLATFORM_VERSION=${{ needs.resolve-platform-version.outputs.version }}
           push: true
           tags: ${{ steps.tags.outputs.ghcr }}
 
